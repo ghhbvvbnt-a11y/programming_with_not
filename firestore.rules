@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isAuthed() { return request.auth != null; }
+    function isAdmin()   { return isAuthed() && request.auth.token.email == 'ghhbvvbnt@gmail.com'; }
+    function isSelf(email) { return isAuthed() && request.auth.token.email == email; }
+
+    // Courses: everyone logged in can read, only the teacher can write
+    match /courses/{id} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+
+    // Public-ish settings & teacher profile: everyone logged in can read, only teacher writes
+    match /settings/{id} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+    match /teacherProfile/{id} {
+      allow read: if isAuthed();
+      allow write: if isAdmin();
+    }
+
+    // Student accounts: a student can read/update their own doc, teacher can read/update all
+    match /users/{uid} {
+      allow get: if isAuthed() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAuthed() && request.auth.uid == uid;
+      allow update: if isAuthed() && (request.auth.uid == uid || isAdmin());
+      allow delete: if false;
+    }
+
+    // Payments: student can create/read their own, teacher can read/approve all
+    match /payments/{id} {
+      allow create: if isAuthed() && (isAdmin() || isSelf(request.resource.data.email));
+      allow read: if isAuthed() && (isAdmin() || isSelf(resource.data.email));
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Profile edit requests
+    match /editRequests/{id} {
+      allow create: if isAuthed() && isSelf(request.resource.data.email);
+      allow read: if isAuthed() && (isAdmin() || isSelf(resource.data.email));
+      allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Student <-> teacher messages
+    match /messages/{id} {
+      allow create: if isAuthed() && (isAdmin() || isSelf(request.resource.data.email));
+      allow read: if isAuthed() && (isAdmin() || isSelf(resource.data.email));
+      allow update: if false;
+      allow delete: if false;
+    }
+
+    // Exam results: student submits their own, teacher reads all
+    match /examResults/{id} {
+      allow create: if isAuthed() && isSelf(request.resource.data.email);
+      allow read: if isAuthed() && (isAdmin() || isSelf(resource.data.email));
+      allow update: if false;
+      allow delete: if false;
+    }
+  }
+}

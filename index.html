@@ -155,7 +155,9 @@ viewGrades:["عرض الدرجات","View grades","Voir les notes"],allStudents:
 lastActive:["آخر نشاط","Last active","Dernière activité"],loading:["جارِ التحميل…","Loading…","Chargement…"],connErr:["حصل خطأ في الاتصال، حاول تاني","Connection error, please try again","Erreur de connexion, réessayez"],
 enableEmail:["فعّل تسجيل الدخول بالإيميل من إعدادات Firebase","Enable Email/Password sign-in in Firebase settings","Activez la connexion par e-mail dans Firebase"],
 video2:["فيديو","Video","Vidéo"],type:["النوع","Type","Type"],
-examLinkOptional:["أو ضع رابط امتحان خارجي بدل الأسئلة (اختياري)","Or paste an external exam link instead of questions (optional)","Ou un lien d'examen externe à la place des questions (facultatif)"]};
+examLinkOptional:["أو ضع رابط امتحان خارجي بدل الأسئلة (اختياري)","Or paste an external exam link instead of questions (optional)","Ou un lien d'examen externe à la place des questions (facultatif)"],
+badDomain:["الدومين اللي الموقع شغال عليه مش مضاف في Firebase Authentication → Settings → Authorized domains","This site's domain isn't added under Firebase Authentication → Settings → Authorized domains","Ce domaine n'est pas ajouté dans Firebase Authentication → Settings → Authorized domains"],
+tooMany:["محاولات كتير غلط، استنى شوية وحاول تاني","Too many attempts, please wait a bit and try again","Trop de tentatives, patientez puis réessayez"]};
 for(const k in N)['ar','en','fr'].forEach((l,i)=>L[l][k]=N[k][i]);
 L.ar.email='البريد الإلكتروني';L.en.email='Email address';L.fr.email='Adresse e-mail';
 const t=k=>(L[lg]||L.en)[k]||k;
@@ -214,20 +216,26 @@ async function doAuth(){const v=i=>$('#'+i)?cl($('#'+i).value):'',e=nd(v('e')).t
  if(mode==='login'){
   if(!e||!p)return bad('e1');
   abusy=true;er='';render();
+  const credBad=c=>['auth/user-not-found','auth/wrong-password','auth/invalid-credential','auth/invalid-login-credentials'].includes(c);
   try{
    if(e===ADMIN_EMAIL){
     try{await auth.signInWithEmailAndPassword(e,p)}
     catch(err){
-     if(err.code==='auth/user-not-found')await auth.createUserWithEmailAndPassword(e,p);
-     else throw err;
+     if(credBad(err.code)){
+      try{await auth.createUserWithEmailAndPassword(e,p)}
+      catch(err2){throw err2.code==='auth/email-already-in-use'?err:err2}
+     }else throw err;
     }
    }else{
     await auth.signInWithEmailAndPassword(e,p);
    }
   }catch(err){
-   if(['auth/user-not-found','auth/wrong-password','auth/invalid-credential','auth/invalid-login-credentials'].includes(err.code))return bad('e2');
+   if(credBad(err.code))return bad('e2');
    if(err.code==='auth/invalid-email')return bad('e6');
+   if(err.code==='auth/weak-password')return bad('e3');
    if(err.code==='auth/operation-not-allowed'){er=t('enableEmail');abusy=false;render();return}
+   if(err.code==='auth/unauthorized-domain'){er=t('badDomain');abusy=false;render();return}
+   if(err.code==='auth/too-many-requests'){er=t('tooMany');abusy=false;render();return}
    er=t('connErr');abusy=false;render();return;
   }
  }else{
@@ -245,6 +253,8 @@ async function doAuth(){const v=i=>$('#'+i)?cl($('#'+i).value):'',e=nd(v('e')).t
    if(err.code==='auth/invalid-email')return bad('e6');
    if(err.code==='auth/weak-password')return bad('e3');
    if(err.code==='auth/operation-not-allowed'){er=t('enableEmail');abusy=false;render();return}
+   if(err.code==='auth/unauthorized-domain'){er=t('badDomain');abusy=false;render();return}
+   if(err.code==='auth/too-many-requests'){er=t('tooMany');abusy=false;render();return}
    er=t('connErr');abusy=false;render();return;
   }
  }
